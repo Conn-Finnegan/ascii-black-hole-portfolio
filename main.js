@@ -1,7 +1,8 @@
 // ASCII Black Hole with overlay panels, hash routing, and camera return-to-home
-import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
-import { OrbitControls } from "https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js";
-import { AsciiEffect } from "https://unpkg.com/three@0.161.0/examples/jsm/effects/AsciiEffect.js";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
+import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js";
+import { AsciiEffect } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/effects/AsciiEffect.js";
+
 
 const container = document.getElementById("scene");
 const modeToggle = document.getElementById("modeToggle");
