@@ -27,7 +27,7 @@ const asciiChars = " .:-=+*#%@";
 const effect = new AsciiEffect(renderer, asciiChars, { invert: true });
 effect.setSize(window.innerWidth, window.innerHeight);
 // Glyph colour: neutral light (less blue)
-effect.domElement.style.color = "#CFCFCF";
+effect.domElement.style.color = "#FFFFFF";
 effect.domElement.style.backgroundColor = "#000";
 /* Higher ASCII resolution → smoother motion */
 effect.domElement.style.fontSize = "6px";
@@ -238,11 +238,12 @@ modeToggle.addEventListener("click", () => {
 
 // Camera targets
 const targets = {
-  about:    new THREE.Vector3( 0.0,  0.9,  3.2),
-  projects: new THREE.Vector3(-2.2,  0.4,  3.2),
-  contact:  new THREE.Vector3( 2.2,  0.2,  3.2),
+  about:    new THREE.Vector3( 1.5,  0.9,  3.2),   // right + up
+  projects: new THREE.Vector3(-1.8, 0.7,  3.2),   // left + up
+  contact:  new THREE.Vector3( 1.8,  0.7,  3.2),   // right + up
   home:     new THREE.Vector3( 0.0,  0.25, 4.0),
 };
+
 
 let flyActive = false;
 let flyStart = new THREE.Vector3();
