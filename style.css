@@ -59,3 +59,17 @@ h2 { margin: 0 0 10px 0; }
   color: var(--fg); text-decoration: none; background: #0a0a0a;
 }
 .btn:hover { border-color: var(--accent); }
+
+/* Contact panel link styling (make links pop) */
+#panel-contact ul { list-style: none; padding: 0; margin: 8px 0 0; }
+#panel-contact li { margin: 6px 0; }
+#panel-contact a.btn, #panel-contact li a {
+  display: inline-block;
+  padding: 6px 10px;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--fg);
+  background: #0a0a0a;
+}
+#panel-contact li a:hover { border-color: var(--accent); }
