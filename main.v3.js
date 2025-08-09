@@ -5,7 +5,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.m
 import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js";
 import { AsciiEffect } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/effects/AsciiEffect.js";
 
-console.log("Loaded main.v2.js at", new Date().toISOString());
+console.log("Loaded main.v3.js at", new Date().toISOString());
 
 const container = document.getElementById("scene");
 const modeToggle = document.getElementById("modeToggle");
@@ -28,9 +28,9 @@ const effect = new AsciiEffect(renderer, asciiChars, { invert: true });
 effect.setSize(window.innerWidth, window.innerHeight);
 effect.domElement.style.color = "#A7FFFB";
 effect.domElement.style.backgroundColor = "#000";
-/* Make ASCII glyphs readable */
-effect.domElement.style.fontSize = "8px";
-effect.domElement.style.lineHeight = "8px";
+/* Higher ASCII resolution → smoother motion */
+effect.domElement.style.fontSize = "6px";
+effect.domElement.style.lineHeight = "6px";
 let asciiEnabled = true;
 
 // Scene, Camera, Controls
@@ -77,7 +77,7 @@ makeStars();
 const core = new THREE.Mesh(new THREE.SphereGeometry(0.65, 64, 64), new THREE.MeshBasicMaterial({ color: 0x000000 }));
 scene.add(core);
 
-// Accretion Disk (shader)
+// Accretion Disk (smoother shader)
 const disk = new THREE.Mesh(
   new THREE.TorusGeometry(1.2, 0.25, 128, 256),
   new THREE.ShaderMaterial({
@@ -100,25 +100,39 @@ const disk = new THREE.Mesh(
       precision highp float;
       varying vec3 vPos; varying vec2 vUv2;
       uniform float u_time; uniform vec3 u_colourA,u_colourB,u_colourC; uniform float u_glow;
+
       float hash(float n){ return fract(sin(n)*43758.5453123); }
       float noise(vec2 x){
-        vec2 p=floor(x), f=fract(x); f=f*f*(3.0-2.0*f);
+        vec2 p=floor(x), f=fract(x);
+        f=f*f*(3.0-2.0*f);
         float n=p.x+p.y*57.0;
         return mix(mix(hash(n+0.0),hash(n+1.0),f.x),mix(hash(n+57.0),hash(n+58.0),f.x),f.y);
       }
+
       void main(){
         float angle=(vUv2.x+3.14159265)/(2.0*3.14159265);
         float band=abs(vPos.z);
-        float t=u_time*0.4;
-        float n=noise(vec2(angle*12.0 - t*4.0, band*4.0 + t*1.3));
-        float streaks=smoothstep(0.35,1.0,n);
+
+        // Slower time → smoother
+        float t=u_time*0.25;
+
+        // Two samples averaged → smoother streaks
+        float n1=noise(vec2(angle*10.0 - t*3.0, band*3.5 + t*1.1));
+        float n2=noise(vec2(angle*10.0 - t*3.6, band*3.5 - t*0.9));
+        float n=0.5*(n1+n2);
+
+        float streaks=smoothstep(0.40, 0.98, n);
+
         vec3 col=mix(u_colourA,u_colourB,streaks);
-        col=mix(col,u_colourC,smoothstep(0.7,1.0,streaks));
-        float inner=smoothstep(0.04,0.18,abs(band));
-        float outer=1.0-smoothstep(0.18,0.23,abs(band));
+        col=mix(col,u_colourC,smoothstep(0.75,1.0,streaks));
+
+        float inner=smoothstep(0.05,0.17,abs(band));
+        float outer=1.0 - smoothstep(0.17,0.24,abs(band));
         float alpha=inner*outer;
-        col*= (1.0 + u_glow * smoothstep(0.6,1.0,streaks));
-        gl_FragColor=vec4(col,alpha);
+
+        col *= (1.0 + u_glow * smoothstep(0.6,1.0,streaks));
+
+        gl_FragColor=vec4(col, alpha);
       }`,
   })
 );
@@ -146,14 +160,17 @@ const lens = new THREE.Mesh(
 lens.rotation.x = Math.PI / 2;
 scene.add(lens);
 
-// Volumetric hint
-const cone = new THREE.Mesh(
-  new THREE.ConeGeometry(0.35, 1.6, 64, 1, true),
-  new THREE.MeshBasicMaterial({ color: 0x66ffff, transparent: true, opacity: 0.05, side: THREE.DoubleSide })
-);
-cone.position.y = 0.15;
-cone.rotation.x = -Math.PI / 2;
-scene.add(cone);
+// Optional “volumetric” cone — disabled by default
+const SHOW_CONE = false;
+if (SHOW_CONE) {
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(0.35, 1.6, 64, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x66ffff, transparent: true, opacity: 0.05, side: THREE.DoubleSide })
+  );
+  cone.position.y = 0.15;
+  cone.rotation.x = -Math.PI / 2;
+  scene.add(cone);
+}
 
 // ASCII / Normal Toggle
 function attachOutput() {
@@ -243,7 +260,9 @@ window.addEventListener("resize", onResize);
 const clock = new THREE.Clock();
 function animate() {
   const t = clock.getElapsedTime();
-  disk.rotation.z = t * 0.35;
+
+  // Gentler spin for smoother ASCII feel
+  disk.rotation.z = t * 0.22;
   disk.material.uniforms.u_time.value = t;
   lens.material.uniforms.u_time.value = t;
 
