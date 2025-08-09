@@ -9,6 +9,11 @@ console.log("Loaded main.v4.js (lensing + ASCII)");
 
 /* DOM */
 const container = document.getElementById("scene");
+const hint = document.getElementById("hint");
+setTimeout(() => {
+  hint.classList.add("hidden");
+}, 3000);
+
 const modeToggle = document.getElementById("modeToggle");
 const links = document.querySelectorAll('#topbar [data-section]');
 const panelAbout = document.getElementById('panel-about');
