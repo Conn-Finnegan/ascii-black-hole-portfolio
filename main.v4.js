@@ -1,11 +1,11 @@
-// ASCII Black Hole — background-only relativistic lensing + white planets/stars + white curved ring
-// Drop-in for GitHub Pages (ESM CDN). Works with ASCII mode.
+// ASCII Black Hole — background-only lensing + hover orbit + white planets/stars + white curved ring
+// ESM via CDN, GitHub Pages-friendly.
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
 import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js";
 import { AsciiEffect } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/effects/AsciiEffect.js";
 
-console.log("Loaded main.v4.js (lensing + ASCII)");
+console.log("Loaded main.v4.js (lensing + hover orbit + ASCII)");
 
 /* DOM */
 const container = document.getElementById("scene");
@@ -25,13 +25,13 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 const asciiChars = " .:-=+*#%@";
 const effect = new AsciiEffect(renderer, asciiChars, { invert: true });
 effect.setSize(window.innerWidth, window.innerHeight);
-effect.domElement.style.color = "#FFFFFF"; // pure white glyphs
+effect.domElement.style.color = "#FFFFFF";
 effect.domElement.style.backgroundColor = "#000";
 effect.domElement.style.fontSize = "6px";
 effect.domElement.style.lineHeight = "6px";
 let asciiEnabled = true;
 
-/* Cameras */
+/* Camera */
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 500);
 camera.position.set(0, 0.25, 4);
 
@@ -43,11 +43,22 @@ controls.dampingFactor = 0.05;
 controls.minDistance = 2.5;
 controls.maxDistance = 6;
 
-/* Scenes: background (stars+planets) and final (lensed background quad + BH core + ring) */
-const sceneBG = new THREE.Scene();
-const sceneFinal = new THREE.Scene();
+/* --- Hover orbit state (mouse move without click) --- */
+let isDragging = false;
+controls.addEventListener('start', () => (isDragging = true));
+controls.addEventListener('end',   () => (isDragging = false));
 
-/* Lights (minimal; stars are Points, planets use Basic material) */
+const hover = { x: 0, y: 0, sx: 0, sy: 0 }; // target (-1..1) and smoothed
+window.addEventListener('pointermove', (e) => {
+  hover.x = (e.clientX / window.innerWidth) * 2 - 1;   // -1..1
+  hover.y = (e.clientY / window.innerHeight) * 2 - 1;  // -1..1
+});
+
+/* Scenes */
+const sceneBG = new THREE.Scene();   // stars + planets (to texture)
+const sceneFinal = new THREE.Scene(); // lensing quad + core + ring
+
+/* Lights */
 sceneBG.add(new THREE.AmbientLight(0x1a1a1a, 1.0));
 sceneFinal.add(new THREE.AmbientLight(0x1a1a1a, 1.0));
 const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -77,7 +88,7 @@ sceneFinal.add(keyLight);
 const planets = [];
 function addPlanet({ radius, distance, speed, tilt = 0, ring = false }) {
   const geo = new THREE.SphereGeometry(radius, 48, 48);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff }); // flat white
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(distance, 0, 0);
   mesh.rotation.z = tilt;
@@ -97,7 +108,6 @@ function addPlanet({ radius, distance, speed, tilt = 0, ring = false }) {
 
   planets.push(mesh);
 }
-
 addPlanet({ radius: 0.18, distance: 8.5,  speed: 0.03,  tilt: 0.2,  ring: false });
 addPlanet({ radius: 0.28, distance: 11.5, speed: 0.02,  tilt: -0.15, ring: true  });
 addPlanet({ radius: 0.22, distance: 14.0, speed: 0.018, tilt: 0.05,  ring: false });
@@ -110,7 +120,7 @@ const core = new THREE.Mesh(
 );
 sceneFinal.add(core);
 
-// White, curved accretion ring (your shader, monochrome)
+// White curved accretion ring (monochrome)
 const diskInner = horizonRadius * 1.05;
 const diskOuter = 1.95;
 const accretion = new THREE.Mesh(
@@ -170,20 +180,18 @@ accretion.rotation.x = Math.PI / 2;
 sceneFinal.add(accretion);
 
 /* ---------- LENSING PIPELINE ---------- */
-// 1) Render background (stars+planets) into a texture
 let rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
   depthBuffer: true,
   stencilBuffer: false
 });
 
-// 2) Screen-filling quad that samples the background texture and warps it around the BH
-const screenQuadGeo = new THREE.PlaneGeometry(2, 2); // clip-space quad (we’ll place at camera)
+const screenQuadGeo = new THREE.PlaneGeometry(2, 2);
 const lensUniforms = {
   u_tex:      { value: rt.texture },
-  u_bhUV:     { value: new THREE.Vector2(0.5, 0.5) }, // updated each frame
+  u_bhUV:     { value: new THREE.Vector2(0.5, 0.5) },
   u_aspect:   { value: window.innerWidth / window.innerHeight },
-  u_strength: { value: 0.085 }, // lensing intensity (realistic, subtle)
-  u_r0:       { value: (horizonRadius * 0.98) }, // event horizon approx in world -> used for falloff shaping
+  u_strength: { value: 0.085 }, // subtle realistic default
+  u_r0:       { value: (horizonRadius * 0.98) },
 };
 const lensMat = new THREE.ShaderMaterial({
   uniforms: lensUniforms,
@@ -194,7 +202,7 @@ const lensMat = new THREE.ShaderMaterial({
     varying vec2 vUv;
     void main(){
       vUv = uv;
-      gl_Position = vec4(position, 1.0); // full-screen (NDC)
+      gl_Position = vec4(position, 1.0); // full-screen NDC
     }
   `,
   fragmentShader: `
@@ -206,54 +214,41 @@ const lensMat = new THREE.ShaderMaterial({
     uniform float u_strength;
     uniform float u_r0;
 
-    // Radial deflection around BH UV. Subtle, realistic-style falloff.
     void main(){
-      // make coords aspect-corrected
       vec2 p = vUv;
-      vec2 bh = u_bhUV;
-      vec2 d = p - bh;
+      vec2 d = p - u_bhUV;
 
-      // aspect correction in distance
-      d.x *= u_aspect;
-      float r = length(d) + 1e-6;
+      // aspect-correct distance
+      vec2 da = vec2(d.x * u_aspect, d.y);
+      float r = length(da) + 1e-6;
 
-      // Deflection magnitude ~ k / r with clamped peak near center (avoid singularity)
-      float maxDeflect = 0.12; // clamp
+      // approx deflection ~ k/r, clamped
+      float maxDeflect = 0.12;
       float deflect = min(maxDeflect, u_strength / r);
 
-      // ease out so far field is unaffected
-      float fall = smoothstep(0.0, 0.8, 1.0 - r); // stronger near center
+      // near-field emphasis
+      float fall = smoothstep(0.0, 0.8, 1.0 - r);
 
-      // direction
-      vec2 dir = normalize(d);
+      vec2 dir = normalize(da);
       vec2 offset = -dir * (deflect * fall); // bend toward BH
 
       // undo aspect
       offset.x /= u_aspect;
 
-      vec2 uv = p + offset;
-
-      // keep within bounds
-      uv = clamp(uv, vec2(0.0), vec2(1.0));
+      vec2 uv = clamp(p + offset, 0.0, 1.0);
       vec3 col = texture2D(u_tex, uv).rgb;
-
       gl_FragColor = vec4(col, 1.0);
     }
   `
 });
-
-// This quad needs its own scene + an orthographic "camera" in NDC
-// But since we wrote VS in clip-space, we can render it with any camera.
-// We’ll render it as part of sceneFinal by attaching it to the camera.
 const lensQuad = new THREE.Mesh(screenQuadGeo, lensMat);
 lensQuad.frustumCulled = false;
 lensQuad.renderOrder = -1000;
-// Put the quad into sceneFinal via a Group parent that follows the camera
 const quadHolder = new THREE.Group();
 quadHolder.add(lensQuad);
 sceneFinal.add(quadHolder);
 
-/* Keep UI + toggle */
+/* Toggle ASCII */
 function attachOutput() {
   container.innerHTML = "";
   if (asciiEnabled) {
@@ -277,14 +272,13 @@ modeToggle.addEventListener("click", () => {
   attachOutput();
 });
 
-/* Panels + hash routing (unchanged but kept) */
+/* Panels + hash routing */
 const targets = {
   about:    new THREE.Vector3( 1.5, 0.9,  3.2),
   projects: new THREE.Vector3(-1.8, 0.7,  3.2),
   contact:  new THREE.Vector3( 1.8, 0.7,  3.2),
   home:     new THREE.Vector3( 0.0, 0.25, 4.0),
 };
-
 let flyActive = false;
 let flyStart = new THREE.Vector3();
 let flyEnd = targets.home.clone();
@@ -296,7 +290,6 @@ function flyTo(which='home') {
   flyT = 0;
   flyActive = true;
 }
-
 function closePanels(goHome = true) {
   panels.forEach(p => p.classList.remove('open'));
   if (goHome) {
@@ -306,7 +299,6 @@ function closePanels(goHome = true) {
 }
 document.querySelectorAll('.panel .close')
   .forEach(btn => btn.addEventListener('click', () => closePanels(true)));
-
 links.forEach(a => {
   a.addEventListener('click', (e) => {
     e.preventDefault();
@@ -314,7 +306,6 @@ links.forEach(a => {
     location.hash = id;
   });
 });
-
 function openSectionFromHash() {
   const hash = window.location.hash.replace('#', '').toLowerCase();
   panels.forEach(p => p.classList.remove('open'));
@@ -333,13 +324,11 @@ function onResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   effect.setSize(window.innerWidth, window.innerHeight);
 
-  // rebuild render target to match size
   rt.dispose();
   rt = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
     depthBuffer: true,
     stencilBuffer: false
   });
-
   lensUniforms.u_aspect.value = window.innerWidth / window.innerHeight;
 }
 window.addEventListener("resize", onResize);
@@ -349,7 +338,7 @@ const clock = new THREE.Clock();
 function animate() {
   const t = clock.getElapsedTime();
 
-  // Planet orbits
+  // Planets
   for (const p of planets) {
     p.userData.angle += p.userData.speed * 0.016;
     const x = Math.cos(p.userData.angle) * p.userData.distance;
@@ -358,41 +347,50 @@ function animate() {
     p.rotation.y += 0.0015;
   }
 
-  // Camera fly (¼ speed)
-  if (!flyActive) {
-    camera.position.x += Math.sin(t * 0.1) * 0.0005;
-    camera.position.y += Math.sin(t * 0.07) * 0.0003;
-  } else {
+  // Camera: hover orbit (when not dragging or in fly), else fly-to
+  if (!flyActive && !isDragging) {
+    // smooth hover
+    hover.sx += (hover.x - hover.sx) * 0.06;
+    hover.sy += (hover.y - hover.sy) * 0.06;
+
+    // map mouse to angles (≈ ±20° yaw, ±12° pitch)
+    const yaw   = hover.sx * 0.35;
+    const pitch = hover.sy * 0.21;
+
+    // keep roughly current radius
+    const rNow = camera.position.length() || 4.0;
+    const r = Math.max(3.2, Math.min(6.0, rNow));
+
+    const sph = new THREE.Spherical(r, Math.PI/2 - pitch, Math.PI/2 + yaw);
+    camera.position.setFromSpherical(sph);
+  } else if (flyActive) {
     flyT = Math.min(1, flyT + 0.0075);
     const s = flyT * flyT * (3 - 2 * flyT);
     camera.position.lerpVectors(flyStart, flyEnd, s);
     if (flyT >= 1) flyActive = false;
   }
+
   camera.lookAt(0, 0, 0);
   controls.update();
 
-  // 1) Render background to texture
+  // 1) Background to texture
   renderer.setRenderTarget(rt);
   renderer.clear();
   renderer.render(sceneBG, camera);
   renderer.setRenderTarget(null);
 
-  // 2) Update lens quad: keep it glued to camera, compute BH UV
+  // 2) Keep lens quad glued to camera, update BH UV
   quadHolder.position.copy(camera.position);
   quadHolder.quaternion.copy(camera.quaternion);
 
-  // Project BH world (0,0,0) to screen UV for lens center
-  const bhNDC = core.position.clone().project(camera); // since core at origin, this is fine
-  lensUniforms.u_bhUV.value.set(
-    0.5 * (bhNDC.x + 1.0),
-    0.5 * (1.0 - bhNDC.y)
-  );
+  const bhNDC = core.position.clone().project(camera);
+  lensUniforms.u_bhUV.value.set(0.5 * (bhNDC.x + 1.0), 0.5 * (1.0 - bhNDC.y));
   lensUniforms.u_tex.value = rt.texture;
 
-  // Update accretion animation
+  // animate ring
   accretion.material.uniforms.u_time.value = t;
 
-  // 3) Final composite render: lensQuad (warped background) + core + ring
+  // 3) Final: lensed background + core + ring
   if (asciiEnabled) effect.render(sceneFinal, camera);
   else renderer.render(sceneFinal, camera);
 
