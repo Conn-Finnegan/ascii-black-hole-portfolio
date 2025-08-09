@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Conn — ASCII Black Hole</title>
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Favicon to prevent 404 -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><circle cx=%228%22 cy=%228%22 r=%228%22 fill=%22white%22/></svg>">
+
+  <!-- Import map so bare specifier "three" works -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js"
+    }
+  }
+  </script>
 </head>
 <body>
   <header id="topbar">
@@ -15,9 +27,6 @@
     </nav>
     <button id="modeToggle" aria-pressed="true" title="Toggle ASCII rendering">ASCII: ON</button>
   </header>
-
-  <!-- Tooltip -->
-  <div id="hint">Drag to look around</div>
 
   <div id="scene"></div>
 
@@ -75,7 +84,7 @@
     </ul>
   </section>
 
-  <!-- NOTE: cache-busting query updated -->
-  <script type="module" src="main.v4.js?v=6"></script>
+  <!-- Main JS with cache-busting -->
+  <script type="module" src="main.v4.js?v=8"></script>
 </body>
 </html>
