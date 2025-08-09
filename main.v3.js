@@ -1,5 +1,5 @@
-// ASCII Black Hole with overlay panels, hash routing, and camera return-to-home
-// Uses CDN ESM imports so it works on GitHub Pages without a bundler.
+// ASCII Black Hole with panels, hash routing, planets, and warmer accretion colours
+// Works on GitHub Pages via CDN ESM imports.
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
 import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js";
@@ -26,7 +26,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 const asciiChars = " .:-=+*#%@";
 const effect = new AsciiEffect(renderer, asciiChars, { invert: true });
 effect.setSize(window.innerWidth, window.innerHeight);
-effect.domElement.style.color = "#A7FFFB";
+// Glyph colour: neutral light (less blue)
+effect.domElement.style.color = "#CFCFCF";
 effect.domElement.style.backgroundColor = "#000";
 /* Higher ASCII resolution → smoother motion */
 effect.domElement.style.fontSize = "6px";
@@ -36,7 +37,7 @@ let asciiEnabled = true;
 // Scene, Camera, Controls
 const scene = new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 500);
 camera.position.set(0, 0.25, 4);
 
 let controls = new OrbitControls(camera, effect.domElement);
@@ -46,14 +47,14 @@ controls.dampingFactor = 0.05;
 controls.minDistance = 2.5;
 controls.maxDistance = 6;
 
-// Lights
-scene.add(new THREE.AmbientLight(0x222222, 1.0));
-const keyLight = new THREE.DirectionalLight(0x66ccff, 0.8);
+// Lights (keep subtle; planets still need a bit)
+scene.add(new THREE.AmbientLight(0x202020, 1.0));
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
 keyLight.position.set(3, 2, 1);
 scene.add(keyLight);
 
 // Stars
-function makeStars(count = 2000, radius = 80) {
+function makeStars(count = 2000, radius = 120) {
   const geom = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
@@ -67,27 +68,28 @@ function makeStars(count = 2000, radius = 80) {
     positions.set([x, y, z], i * 3);
   }
   geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.6, sizeAttenuation: true });
+  const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, sizeAttenuation: true });
   const pts = new THREE.Points(geom, mat);
   scene.add(pts);
 }
 makeStars();
 
-// Black Hole Core
+// Black Hole Core (true black)
 const core = new THREE.Mesh(new THREE.SphereGeometry(0.65, 64, 64), new THREE.MeshBasicMaterial({ color: 0x000000 }));
 scene.add(core);
 
-// Accretion Disk (smoother shader)
+// Accretion Disk — warmer colours (white-hot → yellow → orange)
 const disk = new THREE.Mesh(
   new THREE.TorusGeometry(1.2, 0.25, 128, 256),
   new THREE.ShaderMaterial({
     transparent: true,
     uniforms: {
-      u_time: { value: 0 },
-      u_colourA: { value: new THREE.Color("#ffadad") },
-      u_colourB: { value: new THREE.Color("#ffd6a5") },
-      u_colourC: { value: new THREE.Color("#caffbf") },
-      u_glow: { value: 1.4 },
+      u_time:   { value: 0 },
+      // Inner white, mid yellow, outer orange
+      u_colourA:{ value: new THREE.Color("#fff6e8") }, // near white
+      u_colourB:{ value: new THREE.Color("#ffd166") }, // yellow
+      u_colourC:{ value: new THREE.Color("#ff8c42") }, // orange
+      u_glow:   { value: 1.3 },
     },
     vertexShader: `
       varying vec3 vPos; varying vec2 vUv2;
@@ -113,15 +115,15 @@ const disk = new THREE.Mesh(
         float angle=(vUv2.x+3.14159265)/(2.0*3.14159265);
         float band=abs(vPos.z);
 
-        // Slower time → smoother
+        // Slower time for smoother ASCII
         float t=u_time*0.25;
 
-        // Two samples averaged → smoother streaks
+        // Average two noises to reduce jitter
         float n1=noise(vec2(angle*10.0 - t*3.0, band*3.5 + t*1.1));
         float n2=noise(vec2(angle*10.0 - t*3.6, band*3.5 - t*0.9));
         float n=0.5*(n1+n2);
 
-        float streaks=smoothstep(0.40, 0.98, n);
+        float streaks=smoothstep(0.40,0.98,n);
 
         vec3 col=mix(u_colourA,u_colourB,streaks);
         col=mix(col,u_colourC,smoothstep(0.75,1.0,streaks));
@@ -139,7 +141,7 @@ const disk = new THREE.Mesh(
 disk.rotation.x = Math.PI / 2;
 scene.add(disk);
 
-// Lens shimmer
+// Gravitational lens shimmer — neutral white
 const lens = new THREE.Mesh(
   new THREE.RingGeometry(0.8, 1.5, 256),
   new THREE.ShaderMaterial({
@@ -153,14 +155,14 @@ const lens = new THREE.Mesh(
         float ring=1.0 - smoothstep(0.32,0.5,r);
         float ripple=0.5 + 0.5*sin(10.0*r - u_time*0.6);
         float alpha=ring * 0.08 * ripple;
-        gl_FragColor=vec4(vec3(0.8,0.95,1.0),alpha);
+        gl_FragColor=vec4(vec3(0.98),alpha);
       }`
   })
 );
 lens.rotation.x = Math.PI / 2;
 scene.add(lens);
 
-// Optional “volumetric” cone — disabled by default
+// Optional “volumetric” cone — still disabled
 const SHOW_CONE = false;
 if (SHOW_CONE) {
   const cone = new THREE.Mesh(
@@ -171,6 +173,44 @@ if (SHOW_CONE) {
   cone.rotation.x = -Math.PI / 2;
   scene.add(cone);
 }
+
+// ---------- Planets (background) ----------
+const planetsGroup = new THREE.Group();
+scene.add(planetsGroup);
+
+const planets = [];
+function addPlanet({ radius, distance, color, speed, tilt = 0, ring = false }) {
+  const geo = new THREE.SphereGeometry(radius, 48, 48);
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 1.0,
+    metalness: 0.0,
+    emissive: 0x000000
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  // start position on X axis; we’ll orbit in animate()
+  mesh.position.set(distance, 0, 0);
+  mesh.rotation.z = tilt;
+  planetsGroup.add(mesh);
+
+  if (ring) {
+    const rInner = radius * 1.6;
+    const rOuter = radius * 2.4;
+    const ringMesh = new THREE.Mesh(
+      new THREE.RingGeometry(rInner, rOuter, 128),
+      new THREE.MeshBasicMaterial({ color: 0xb3a186, transparent: true, opacity: 0.4, side: THREE.DoubleSide })
+    );
+    ringMesh.rotation.x = Math.PI / 2 + tilt;
+    mesh.add(ringMesh);
+  }
+
+  planets.push({ mesh, angle: Math.random() * Math.PI * 2, speed, distance });
+}
+
+// Add a few contrasting planets (farther than stars visually, slow orbits)
+addPlanet({ radius: 0.18, distance: 8.5, color: 0x8aa4ff, speed: 0.03, tilt: 0.2, ring: false });
+addPlanet({ radius: 0.28, distance: 11.5, color: 0xc4a484, speed: 0.02, tilt: -0.15, ring: true }); // “Saturn-ish”
+addPlanet({ radius: 0.22, distance: 14.0, color: 0x7ad3a1, speed: 0.018, tilt: 0.05, ring: false });
 
 // ASCII / Normal Toggle
 function attachOutput() {
@@ -266,11 +306,21 @@ function animate() {
   disk.material.uniforms.u_time.value = t;
   lens.material.uniforms.u_time.value = t;
 
+  // Planet orbits
+  for (const p of planets) {
+    p.angle += p.speed * 0.016; // ~60fps step
+    const x = Math.cos(p.angle) * p.distance;
+    const z = Math.sin(p.angle) * p.distance;
+    p.mesh.position.set(x, 0, z);
+    p.mesh.rotation.y += 0.0015; // slow self-rotation
+  }
+  planetsGroup.rotation.y = 0.0005; // tiny group drift
+
   if (!flyActive) {
     camera.position.x += Math.sin(t * 0.1) * 0.0005;
     camera.position.y += Math.sin(t * 0.07) * 0.0003;
   } else {
-    flyT = Math.min(1, flyT + 0.03);
+    flyT = Math.min(1, flyT + 0.0075);
     const s = flyT * flyT * (3 - 2 * flyT); // smoothstep
     camera.position.lerpVectors(flyStart, flyEnd, s);
     if (flyT >= 1) flyActive = false;
