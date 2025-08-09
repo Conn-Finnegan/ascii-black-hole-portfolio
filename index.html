@@ -5,15 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Conn — ASCII Black Hole</title>
   <link rel="stylesheet" href="style.css" />
-
-  <!-- Import map to resolve "three" inside example modules -->
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js"
-    }
-  }
-  </script>
 </head>
 <body>
   <header id="topbar">
@@ -24,6 +15,9 @@
     </nav>
     <button id="modeToggle" aria-pressed="true" title="Toggle ASCII rendering">ASCII: ON</button>
   </header>
+
+  <!-- Tooltip -->
+  <div id="hint">Drag to look around</div>
 
   <div id="scene"></div>
 
@@ -81,7 +75,7 @@
     </ul>
   </section>
 
-  <!-- Main script -->
-<script type="module" src="main.v4.js?v=4"></script>
+  <!-- NOTE: cache-busting query updated -->
+  <script type="module" src="main.v3.js?v=6"></script>
 </body>
 </html>
