@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conn — ASCII Black Hole</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <nav>
+      <a href="#about" data-section="about">About</a>
+      <a href="#projects" data-section="projects">Projects</a>
+      <a href="#contact" data-section="contact">Contact</a>
+    </nav>
+    <button id="modeToggle" aria-pressed="true" title="Toggle ASCII rendering">ASCII: ON</button>
+  </header>
+
+  <div id="scene"></div>
+
+  <!-- Panels -->
+  <section id="panel-about" class="panel">
+    <button class="close" aria-label="Close">×</button>
+    <h2>About</h2>
+    <p>
+      I’m Conn, a Machine Learning Engineer focused on computer vision and medical AI.
+      I build practical, explainable systems—then ship them.
+    </p>
+    <ul>
+      <li><strong>Stacks:</strong> Python, JavaScript, C++, C#</li>
+      <li><strong>ML:</strong> PyTorch, TensorFlow, scikit-learn, OpenCV</li>
+      <li><strong>Graphics:</strong> Three.js, OpenGL</li>
+      <li><strong>Ops:</strong> Git, GitHub Pages</li>
+    </ul>
+  </section>
+
+  <section id="panel-projects" class="panel">
+    <button class="close" aria-label="Close">×</button>
+    <h2>Projects</h2>
+    <div class="cards">
+      <article class="card">
+        <h3>SOMA — Skin Cancer AI</h3>
+        <p>Classifier with explainability (Grad-CAM) and privacy-first deployment.</p>
+        <div class="meta">PyTorch · CV · Explainability</div>
+        <a class="btn" href="#" target="_blank" rel="noopener">View</a>
+      </article>
+      <article class="card">
+        <h3>Rewire — OCD Support</h3>
+        <p>Mobile app for habit loops and exposure logging with on-device AI.</p>
+        <div class="meta">Flutter · On-device ML</div>
+        <a class="btn" href="#" target="_blank" rel="noopener">View</a>
+      </article>
+      <article class="card">
+        <h3>Facial Recognition Demo</h3>
+        <p>Privacy-compliant showcase using synthetic faces and real-time HUD.</p>
+        <div class="meta">OpenCV · PyTorch · Web</div>
+        <a class="btn" href="#" target="_blank" rel="noopener">View</a>
+      </article>
+    </div>
+  </section>
+
+  <section id="panel-contact" class="panel">
+    <button class="close" aria-label="Close">×</button>
+    <h2>Contact</h2>
+    <p>Quickest way: email me.</p>
+    <p><a class="btn" href="mailto:c.f.engineer@proton.me">c.f.engineer@proton.me</a></p>
+    <p>Or find me here:</p>
+    <ul>
+      <li><a href="https://www.linkedin.com/in/conn-finnegan" target="_blank" rel="noopener">LinkedIn</a></li>
+      <li><a href="https://github.com/conn-finnegan" target="_blank" rel="noopener">GitHub</a></li>
+      <li><a href="https://huggingface.co/conn-finnegan" target="_blank" rel="noopener">Hugging Face</a></li>
+    </ul>
+  </section>
+
+  <!-- NOTE: new file name + cache-busting query -->
+  <script type="module" src="main.v2.js?v=3"></script>
+</body>
+</html>
