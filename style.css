@@ -60,7 +60,7 @@ h2 { margin: 0 0 10px 0; }
 }
 .btn:hover { border-color: var(--accent); }
 
-/* Contact panel link styling (make links pop) */
+/* Contact panel link styling */
 #panel-contact ul { list-style: none; padding: 0; margin: 8px 0 0; }
 #panel-contact li { margin: 6px 0; }
 #panel-contact a.btn, #panel-contact li a {
@@ -77,16 +77,17 @@ h2 { margin: 0 0 10px 0; }
 /* Tooltip styling */
 #hint {
   position: fixed;
+  top: 50%;
   left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  padding: 10px 14px;
+  transform: translate(-50%, -50%);
+  padding: 12px 16px;
   background: rgba(255,255,255,0.08);
   color: #fff;
   border: 1px solid rgba(255,255,255,0.18);
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 16px;
   letter-spacing: 0.3px;
+  text-align: center;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   opacity: 1;
@@ -96,6 +97,5 @@ h2 { margin: 0 0 10px 0; }
 }
 #hint.hidden {
   opacity: 0;
-  transform: translateX(-50%) translateY(6px);
+  transform: translate(-50%, -50%) scale(0.95);
 }
-
