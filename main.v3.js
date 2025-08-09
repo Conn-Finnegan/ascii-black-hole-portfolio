@@ -1,4 +1,4 @@
-// ASCII Black Hole with panels, hash routing, planets, and warmer accretion colours
+// ASCII Black Hole with proper event-horizon look, planets, slower camera, 45° views
 // Works on GitHub Pages via CDN ESM imports.
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
@@ -26,10 +26,10 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 const asciiChars = " .:-=+*#%@";
 const effect = new AsciiEffect(renderer, asciiChars, { invert: true });
 effect.setSize(window.innerWidth, window.innerHeight);
-// Glyph colour: neutral light (less blue)
+// Pure white ASCII glyphs
 effect.domElement.style.color = "#FFFFFF";
 effect.domElement.style.backgroundColor = "#000";
-/* Higher ASCII resolution → smoother motion */
+// Slightly finer glyphs for smoother motion
 effect.domElement.style.fontSize = "6px";
 effect.domElement.style.lineHeight = "6px";
 let asciiEnabled = true;
@@ -47,7 +47,7 @@ controls.dampingFactor = 0.05;
 controls.minDistance = 2.5;
 controls.maxDistance = 6;
 
-// Lights (keep subtle; planets still need a bit)
+// Lights (subtle)
 scene.add(new THREE.AmbientLight(0x202020, 1.0));
 const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
 keyLight.position.set(3, 2, 1);
@@ -74,35 +74,61 @@ function makeStars(count = 2000, radius = 120) {
 }
 makeStars();
 
-// Black Hole Core (true black)
-const core = new THREE.Mesh(new THREE.SphereGeometry(0.65, 64, 64), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+// Event horizon (true black sphere)
+const horizonRadius = 0.75;
+const core = new THREE.Mesh(
+  new THREE.SphereGeometry(horizonRadius, 64, 64),
+  new THREE.MeshBasicMaterial({ color: 0x000000 })
+);
 scene.add(core);
 
-// Accretion Disk — warmer colours (white-hot → yellow → orange)
-const disk = new THREE.Mesh(
-  new THREE.TorusGeometry(1.2, 0.25, 128, 256),
+// Accretion Disk (ring) — procedural, swirl + Doppler brightening, slight GR "lift"
+const diskInner = horizonRadius * 1.05; // just outside the horizon
+const diskOuter = 1.8;
+
+const accretion = new THREE.Mesh(
+  new THREE.RingGeometry(diskInner, diskOuter, 256, 1),
   new THREE.ShaderMaterial({
     transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
     uniforms: {
-      u_time:   { value: 0 },
-      // Inner white, mid yellow, outer orange
-      u_colourA:{ value: new THREE.Color("#fff6e8") }, // near white
-      u_colourB:{ value: new THREE.Color("#ffd166") }, // yellow
-      u_colourC:{ value: new THREE.Color("#ff8c42") }, // orange
-      u_glow:   { value: 1.3 },
+      u_time:     { value: 0 },
+      u_viewDir:  { value: new THREE.Vector3(0,0,1) },
+      // Colour ramp: white-hot -> yellow -> orange
+      u_cA:       { value: new THREE.Color("#fff6e8") },
+      u_cB:       { value: new THREE.Color("#ffd166") },
+      u_cC:       { value: new THREE.Color("#ff8c42") },
+      u_glow:     { value: 1.2 },
+      u_swirl:    { value: 0.35 },   // swirl amount
+      u_doppler:  { value: 0.55 },   // brightness asymmetry
+      u_warp:     { value: 0.12 },   // vertical "lift" near inner edge
     },
     vertexShader: `
-      varying vec3 vPos; varying vec2 vUv2;
+      varying vec3 vPos;
+      varying vec2 vUv;
       void main(){
         vPos = position;
-        vUv2 = vec2(atan(position.y, position.x), position.z);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-      }`,
+        vUv = uv;
+        // Fake GR warping: lift geometry near inner edge so top appears "bent" over the horizon
+        float r = length(vec2(position.x, position.y));
+        float t = clamp((r - ${diskInner.toFixed(3)}) / (${(diskOuter - diskInner).toFixed(3)}), 0.0, 1.0);
+        float lift = (1.0 - t);              // stronger lift near inner edge
+        vec3 p = position;
+        p.z += lift * ${ (0.35).toFixed(3) }; // push towards camera
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      }
+    `,
     fragmentShader: `
       precision highp float;
-      varying vec3 vPos; varying vec2 vUv2;
-      uniform float u_time; uniform vec3 u_colourA,u_colourB,u_colourC; uniform float u_glow;
+      varying vec3 vPos;
+      varying vec2 vUv;
 
+      uniform float u_time;
+      uniform vec3 u_cA, u_cB, u_cC;
+      uniform float u_glow, u_swirl, u_doppler;
+
+      // hash + noise
       float hash(float n){ return fract(sin(n)*43758.5453123); }
       float noise(vec2 x){
         vec2 p=floor(x), f=fract(x);
@@ -112,67 +138,99 @@ const disk = new THREE.Mesh(
       }
 
       void main(){
-        float angle=(vUv2.x+3.14159265)/(2.0*3.14159265);
-        float band=abs(vPos.z);
+        // Polar coordinates in disk plane (x,y come from ring geometry)
+        float r = length(vPos.xy);
+        float phi = atan(vPos.y, vPos.x); // [-PI, PI]
 
-        // Slower time for smoother ASCII
-        float t=u_time*0.25;
+        // Normalised radius 0 (inner) -> 1 (outer)
+        float t = clamp((r - ${diskInner.toFixed(4)}) / (${(diskOuter - diskInner).toFixed(4)}), 0.0, 1.0);
 
-        // Average two noises to reduce jitter
-        float n1=noise(vec2(angle*10.0 - t*3.0, band*3.5 + t*1.1));
-        float n2=noise(vec2(angle*10.0 - t*3.6, band*3.5 - t*0.9));
-        float n=0.5*(n1+n2);
+        // Swirling streaks flowing azimuthally
+        float time = u_time * 0.25;
+        float n1 = noise(vec2(phi*10.0 - time*3.0, t*5.0 + time*1.1));
+        float n2 = noise(vec2(phi*10.6 - time*2.6, t*5.3 - time*0.9));
+        float n = 0.5*(n1+n2);
+        float streaks = smoothstep(0.42, 0.98, n);
 
-        float streaks=smoothstep(0.40,0.98,n);
+        // Colour ramp
+        vec3 col = mix(u_cA, u_cB, streaks);
+        col = mix(col, u_cC, smoothstep(0.72, 1.0, streaks));
 
-        vec3 col=mix(u_colourA,u_colourB,streaks);
-        col=mix(col,u_colourC,smoothstep(0.75,1.0,streaks));
+        // Radial falloff: fade inner/outer edges
+        float inner = smoothstep(0.02, 0.10, t);     // fade in from inner edge
+        float outer = 1.0 - smoothstep(0.88, 1.00, t); // fade out near outer edge
+        float alpha = inner * outer;
 
-        float inner=smoothstep(0.05,0.17,abs(band));
-        float outer=1.0 - smoothstep(0.17,0.24,abs(band));
-        float alpha=inner*outer;
+        // Doppler beaming: brighten the approaching side (phi≈0)
+        float beaming = 1.0 + u_doppler * max(0.0, cos(phi));
+        col *= beaming;
 
+        // Gentle glow boost on brightest streaks
         col *= (1.0 + u_glow * smoothstep(0.6,1.0,streaks));
 
-        gl_FragColor=vec4(col, alpha);
-      }`,
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
   })
 );
-disk.rotation.x = Math.PI / 2;
-scene.add(disk);
+// Orient disk: X right, Y up, Z toward camera; we already "lifted" toward camera in VS
+accretion.rotation.x = Math.PI / 2;
+scene.add(accretion);
 
-// Gravitational lens shimmer — neutral white
-const lens = new THREE.Mesh(
-  new THREE.RingGeometry(0.8, 1.5, 256),
+// Photon ring — razor-thin, bright at horizon radius
+const photonRing = new THREE.Mesh(
+  new THREE.TorusGeometry(horizonRadius * 1.02, 0.03, 32, 256),
   new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false,
+    transparent: true,
+    depthWrite: false,
     uniforms: { u_time: { value: 0.0 } },
     vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
     fragmentShader: `
       precision highp float; varying vec2 vUv; uniform float u_time;
       void main(){
-        float r=distance(vUv,vec2(0.5));
-        float ring=1.0 - smoothstep(0.32,0.5,r);
-        float ripple=0.5 + 0.5*sin(10.0*r - u_time*0.6);
-        float alpha=ring * 0.08 * ripple;
-        gl_FragColor=vec4(vec3(0.98),alpha);
-      }`
+        // Soft, hot white ring with subtle flicker
+        float a = 0.7 + 0.3 * sin(u_time*3.0 + vUv.x*20.0);
+        gl_FragColor = vec4(vec3(1.0), a);
+      }
+    `
   })
 );
-lens.rotation.x = Math.PI / 2;
-scene.add(lens);
+photonRing.rotation.x = Math.PI / 2;
+scene.add(photonRing);
 
-// Optional “volumetric” cone — still disabled
-const SHOW_CONE = false;
-if (SHOW_CONE) {
-  const cone = new THREE.Mesh(
-    new THREE.ConeGeometry(0.35, 1.6, 64, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0x66ffff, transparent: true, opacity: 0.05, side: THREE.DoubleSide })
-  );
-  cone.position.y = 0.15;
-  cone.rotation.x = -Math.PI / 2;
-  scene.add(cone);
-}
+// Lensing halo (billboarded quad with radial falloff)
+const halo = new THREE.Mesh(
+  new THREE.PlaneGeometry(4.5, 4.5),
+  new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: { u_time: { value: 0.0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main(){
+        vUv = uv;
+        // face camera: use regular modelView
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+      }
+    `,
+    fragmentShader: `
+      precision highp float; varying vec2 vUv; uniform float u_time;
+      // Subtle radial glow that peaks near the photon ring radius
+      void main(){
+        vec2 p = vUv*2.0 - 1.0;
+        float r = length(p);
+        // peak near ~0.33 of quad size (roughly ring radius on this quad)
+        float peak = 0.33;
+        float w = 0.08;
+        float g = exp(-pow((r - peak)/w, 2.0));
+        float alpha = 0.10 * g; // faint
+        gl_FragColor = vec4(vec3(1.0), alpha);
+      }
+    `
+  })
+);
+halo.position.z = 0.0; // sits around origin; subtle overlay
+scene.add(halo);
 
 // ---------- Planets (background) ----------
 const planetsGroup = new THREE.Group();
@@ -182,13 +240,9 @@ const planets = [];
 function addPlanet({ radius, distance, color, speed, tilt = 0, ring = false }) {
   const geo = new THREE.SphereGeometry(radius, 48, 48);
   const mat = new THREE.MeshStandardMaterial({
-    color,
-    roughness: 1.0,
-    metalness: 0.0,
-    emissive: 0x000000
+    color, roughness: 1.0, metalness: 0.0, emissive: 0x000000
   });
   const mesh = new THREE.Mesh(geo, mat);
-  // start position on X axis; we’ll orbit in animate()
   mesh.position.set(distance, 0, 0);
   mesh.rotation.z = tilt;
   planetsGroup.add(mesh);
@@ -207,10 +261,10 @@ function addPlanet({ radius, distance, color, speed, tilt = 0, ring = false }) {
   planets.push({ mesh, angle: Math.random() * Math.PI * 2, speed, distance });
 }
 
-// Add a few contrasting planets (farther than stars visually, slow orbits)
-addPlanet({ radius: 0.18, distance: 8.5, color: 0x8aa4ff, speed: 0.03, tilt: 0.2, ring: false });
-addPlanet({ radius: 0.28, distance: 11.5, color: 0xc4a484, speed: 0.02, tilt: -0.15, ring: true }); // “Saturn-ish”
-addPlanet({ radius: 0.22, distance: 14.0, color: 0x7ad3a1, speed: 0.018, tilt: 0.05, ring: false });
+// A few subtle background planets
+addPlanet({ radius: 0.18, distance: 8.5,  color: 0x8aa4ff, speed: 0.03,  tilt: 0.2,  ring: false });
+addPlanet({ radius: 0.28, distance: 11.5, color: 0xc4a484, speed: 0.02,  tilt: -0.15, ring: true  });
+addPlanet({ radius: 0.22, distance: 14.0, color: 0x7ad3a1, speed: 0.018, tilt: 0.05,  ring: false });
 
 // ASCII / Normal Toggle
 function attachOutput() {
@@ -236,14 +290,13 @@ modeToggle.addEventListener("click", () => {
   attachOutput();
 });
 
-// Camera targets
+// Camera targets — bias to ~45° angles
 const targets = {
-  about:    new THREE.Vector3( 1.5,  0.9,  3.2),   // right + up
-  projects: new THREE.Vector3(-1.8, 0.7,  3.2),   // left + up
-  contact:  new THREE.Vector3( 1.8,  0.7,  3.2),   // right + up
-  home:     new THREE.Vector3( 0.0,  0.25, 4.0),
+  about:    new THREE.Vector3( 1.5, 0.9,  3.2),  // right + up
+  projects: new THREE.Vector3(-1.8, 0.7,  3.2),  // left + up
+  contact:  new THREE.Vector3( 1.8, 0.7,  3.2),  // right + up (different azimuth)
+  home:     new THREE.Vector3( 0.0, 0.25, 4.0),
 };
-
 
 let flyActive = false;
 let flyStart = new THREE.Vector3();
@@ -302,10 +355,10 @@ const clock = new THREE.Clock();
 function animate() {
   const t = clock.getElapsedTime();
 
-  // Gentler spin for smoother ASCII feel
-  disk.rotation.z = t * 0.22;
-  disk.material.uniforms.u_time.value = t;
-  lens.material.uniforms.u_time.value = t;
+  // Animate accretion + photon ring + halo
+  accretion.material.uniforms.u_time.value = t;
+  photonRing.material.uniforms.u_time.value = t;
+  halo.material.uniforms.u_time.value = t;
 
   // Planet orbits
   for (const p of planets) {
@@ -313,15 +366,16 @@ function animate() {
     const x = Math.cos(p.angle) * p.distance;
     const z = Math.sin(p.angle) * p.distance;
     p.mesh.position.set(x, 0, z);
-    p.mesh.rotation.y += 0.0015; // slow self-rotation
+    p.mesh.rotation.y += 0.0015;
   }
-  planetsGroup.rotation.y = 0.0005; // tiny group drift
+  planetsGroup.rotation.y = 0.0005;
 
+  // Slower camera fly speed (¼ of original)
   if (!flyActive) {
     camera.position.x += Math.sin(t * 0.1) * 0.0005;
     camera.position.y += Math.sin(t * 0.07) * 0.0003;
   } else {
-    flyT = Math.min(1, flyT + 0.0075);
+    flyT = Math.min(1, flyT + 0.0075); // <- slowed from 0.03
     const s = flyT * flyT * (3 - 2 * flyT); // smoothstep
     camera.position.lerpVectors(flyStart, flyEnd, s);
     if (flyT >= 1) flyActive = false;
